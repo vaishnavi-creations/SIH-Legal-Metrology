@@ -1,0 +1,3 @@
+"""
+Structured data extraction package.
+"""

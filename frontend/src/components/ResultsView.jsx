@@ -21,6 +21,48 @@ import {
   Layers
 } from 'lucide-react';
 
+const ROLE_NAMES = {
+  front: 'Front View',
+  back: 'Back View',
+  left: 'Left Side',
+  right: 'Right Side',
+  top: 'Top View',
+  bottom: 'Bottom View',
+  label: 'Label Panel',
+  other: 'Package Face',
+};
+
+function formatRole(role) {
+  if (!role) return null;
+  return ROLE_NAMES[role.toLowerCase()] || `${role.charAt(0).toUpperCase() + role.slice(1)} View`;
+}
+
+function formatConflictValue(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'number') {
+    return String(val);
+  }
+  if (typeof val === 'string') {
+    return val;
+  }
+  if (typeof val === 'object') {
+    if (val.value !== undefined) {
+      if (val.currency === 'INR' || val.currency === undefined) {
+        return val.unit ? `${val.value} ${val.unit}` : `₹${val.value}`;
+      }
+      return `${val.currency} ${val.value}`;
+    }
+    if (val.name) return val.name;
+    if (val.raw_text) return val.raw_text;
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return String(val);
+    }
+  }
+  return String(val);
+}
+
 export function ResultsView({ result, onBackToScan }) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [ocrSearch, setOcrSearch] = useState('');
@@ -209,6 +251,67 @@ export function ResultsView({ result, onBackToScan }) {
           </div>
         )}
 
+        {/* Cross-Image Declaration Conflicts Alert */}
+        {(result.is_conflicted || (result.conflicts && result.conflicts.length > 0)) && (
+          <div className="p-4 rounded-xl bg-amber-50/90 border border-amber-300 text-amber-950 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+              <h4 className="text-xs sm:text-sm font-bold text-amber-950 uppercase tracking-wide">
+                Cross-Image Declaration Conflict{result.conflicts?.length > 1 ? 's' : ''}
+              </h4>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded ml-auto">
+                Evidence Mismatch
+              </span>
+            </div>
+            <p className="text-xs text-amber-900 leading-relaxed">
+              Contradictory statutory declarations were detected across different package face views:
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              {(result.conflicts || []).map((conflict, cIdx) => (
+                <div key={cIdx} className="p-3 rounded-lg bg-white border border-amber-200/90 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between border-b border-amber-100 pb-1.5">
+                    <span className="text-xs font-bold font-mono uppercase text-navy-950">
+                      {conflict.field_name ? conflict.field_name.replace(/_/g, ' ') : 'Declaration'}
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
+                      {conflict.conflict_type || 'VALUE_MISMATCH'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {/* Render each source with its role and detected text/value */}
+                    {conflict.sources && conflict.sources.length > 0 ? (
+                      conflict.sources.map((src, sIdx) => {
+                        const valDisplay = formatConflictValue(src.extracted_value) || src.source_text || '—';
+                        const roleDisplay = formatRole(src.source_role);
+                        return (
+                          <div key={sIdx} className="flex items-center justify-between text-xs gap-2">
+                            <span className="text-navy-900 font-bold truncate">
+                              {valDisplay}
+                            </span>
+                            {roleDisplay && (
+                              <span className="text-[10px] font-mono font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                                {roleDisplay}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      (conflict.competing_values || []).map((val, vIdx) => (
+                        <div key={vIdx} className="text-xs font-bold text-navy-900">
+                          {formatConflictValue(val)}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* Main Grid: Left = Product Info & Label, Right = Statutory Compliance Checks */}
@@ -250,7 +353,11 @@ export function ResultsView({ result, onBackToScan }) {
           </div>
 
           {/* Structured Attributes Card */}
-          <ProductAttributes data={structured} />
+          <ProductAttributes
+            data={structured}
+            provenance={result.provenance}
+            conflicts={result.conflicts}
+          />
 
         </div>
 

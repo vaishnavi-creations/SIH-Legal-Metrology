@@ -67,9 +67,10 @@ export function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const handleStartScan = async (file, isImported, commodityType) => {
-    setScanningFile(file);
-    const pUrl = URL.createObjectURL(file);
+  const handleStartScan = async (file, isImported, commodityType, images = []) => {
+    const primaryFile = (images && images.length > 0 && images[0]?.file) ? images[0].file : file;
+    setScanningFile(primaryFile);
+    const pUrl = URL.createObjectURL(primaryFile);
     setScanningPreviewUrl(pUrl);
 
     setIsScanning(true);
@@ -77,11 +78,58 @@ export function App() {
     setScanResult(null);
 
     try {
-      const response = await apiService.inspectPackageFile(file, isImported, commodityType);
-      setScanResult(response);
-      setIsScanning(false);
+      if (images && images.length > 0) {
+        // Step 1: Create multi-image inspection session
+        const session = await apiService.createInspection({
+          is_imported: Boolean(isImported),
+          commodity_type: commodityType?.trim() || null,
+        });
+
+        const inspectionId = session.inspection_id;
+
+        // Step 2: Upload every queued image sequentially
+        for (const img of images) {
+          await apiService.uploadInspectionImage(
+            inspectionId,
+            img.file,
+            img.role || 'front',
+            img.sequence
+          );
+        }
+
+        // Step 3: Process the complete inspection through Evidence Fusion
+        const processResponse = await apiService.processInspection(inspectionId);
+
+        // Step 4: Map process response into the shape expected by ResultsView
+        const mappedResult = {
+          file_id: inspectionId,
+          inspection_id: inspectionId,
+          compliance_report: processResponse.compliance_report,
+          structured_data: processResponse.structured_data,
+          ocr_result: {
+            full_text: processResponse.ocr_summary?.combined_text || '',
+            blocks: processResponse.ocr_summary?.blocks || [],
+            block_count: processResponse.ocr_summary?.total_blocks ?? processResponse.ocr_summary?.blocks?.length ?? 0,
+            average_confidence: processResponse.ocr_summary?.average_confidence ?? 0,
+            execution_time_seconds: null,
+          },
+          provenance: processResponse.provenance || {},
+          conflicts: processResponse.conflicts || [],
+          is_conflicted: Boolean(processResponse.is_conflicted),
+          images: processResponse.images || [],
+          warnings: processResponse.warnings || [],
+        };
+
+        setScanResult(mappedResult);
+        setIsScanning(false);
+      } else {
+        // Legacy single-image fallback
+        const response = await apiService.inspectPackageFile(file, isImported, commodityType);
+        setScanResult(response);
+        setIsScanning(false);
+      }
     } catch (err) {
-      setScanError(err.message || 'Inspection failed. Please ensure the backend is running and the image is clear.');
+      setScanError(err.message || 'Inspection failed. Please ensure the backend is running and the images are clear.');
       setIsScanning(false);
     }
   };

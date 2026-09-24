@@ -18,6 +18,7 @@ from app.schemas.inspection import (
     InspectionProcessResponse
 )
 from app.inspection.aggregator import InspectionOCRAggregator
+from app.inspection.fusion import EvidenceFusionEngine, EvidenceCandidate
 
 logger = logging.getLogger(__name__)
 
@@ -221,24 +222,41 @@ class InspectionProcessor:
         # Step 6: Combine OCR evidence across all successful images
         ocr_summary = InspectionOCRAggregator.aggregate_ocr(successful_images_data)
 
-        # Step 7: Run existing structured extraction engine once on combined OCR text
-        structured_data = await StructuredDataExtractor.extract(ocr_summary.combined_text)
+        # Step 7: Extract field-level evidence candidates across each image view
+        all_candidates: List[EvidenceCandidate] = []
+        for item in successful_images_data:
+            img_ocr = item["ocr_result"]
+            try:
+                image_structured = await StructuredDataExtractor.extract(img_ocr.full_text)
+                candidates = EvidenceFusionEngine.extract_candidates_from_structured_data(
+                    image_id=item["image_id"],
+                    image_role=item["image_role"],
+                    sequence=item["sequence"],
+                    data=image_structured,
+                    ocr_result=img_ocr
+                )
+                all_candidates.extend(candidates)
+            except Exception as e:
+                logger.warning(f"Structured extraction error for image {item['image_id']}: {e}")
+                warnings.append(f"Image {item['image_id']} extraction warning: {str(e)}")
+
+        # Step 8: Reconcile evidence across views using EvidenceFusionEngine
+        fusion_result = EvidenceFusionEngine.fuse(all_candidates)
+        structured_data = fusion_result.structured_data
 
         # Use Inspection-level product name if structured extraction did not detect one
         if inspection.product_name and not structured_data.product_name:
             structured_data.product_name = inspection.product_name
 
-        # Step 8: Run deterministic Legal Metrology rule engine once on unified product declarations
+        # Step 9: Run deterministic Legal Metrology rule engine on consolidated product declarations
         context = {
             "is_imported": inspection.is_imported,
             "commodity_type": inspection.commodity_type or ""
         }
         compliance_report = rule_engine.evaluate_compliance(structured_data, context=context)
 
-        # Step 9: Preserve source-image provenance for each detected declaration
-        provenance = InspectionOCRAggregator.build_provenance(structured_data, successful_images_data)
-
         # Step 10: Persist complete inspection results into database
+        provenance = fusion_result.provenance
         inspection.status = "COMPLETED"
         inspection.compliance_status = compliance_report.compliance_status.value
         inspection.ocr_summary_json = ocr_summary.model_dump_json()
@@ -260,5 +278,7 @@ class InspectionProcessor:
             structured_data=structured_data,
             compliance_report=compliance_report,
             provenance=provenance,
+            conflicts=fusion_result.conflicts,
+            is_conflicted=fusion_result.is_conflicted,
             warnings=warnings
         )

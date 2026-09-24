@@ -102,12 +102,34 @@ class InspectionOCRSummary(BaseModel):
     blocks: List[InspectionOCRBlock] = Field(default_factory=list, description="All OCR blocks with source image identity")
 
 
+class EvidenceSource(BaseModel):
+    source_image_id: Optional[int] = Field(None, description="Database ID of the image providing this evidence")
+    source_role: Optional[str] = Field(None, description="Package view role (e.g. front, back, label)")
+    source_sequence: Optional[int] = Field(None, description="Sequence index of the source image")
+    source_text: Optional[str] = Field(None, description="Exact OCR text line or block matching this declaration")
+    confidence: Optional[float] = Field(None, description="Detection confidence score (0.0 to 1.0) if measured")
+    detected_script: Optional[str] = Field(None, description="Detected script category (LATIN, DEVANAGARI, MIXED, UNKNOWN) if classified")
+    extracted_value: Optional[Any] = Field(None, description="Normalized or parsed value extracted from this source")
+
+
+class FieldConflict(BaseModel):
+    field_name: str = Field(..., description="Name of the statutory declaration in conflict (e.g. mrp, net_quantity)")
+    competing_values: List[Any] = Field(default_factory=list, description="Contradictory values detected across different views")
+    sources: List[EvidenceSource] = Field(default_factory=list, description="Source references corresponding to each competing value")
+    conflict_type: str = Field("VALUE_MISMATCH", description="Type of conflict (e.g. VALUE_MISMATCH, UNIT_MISMATCH)")
+
+
 class FieldProvenance(BaseModel):
     value: Optional[Any] = Field(None, description="Extracted field value")
     source_image_id: Optional[int] = Field(None, description="Database ID of the image providing this evidence")
     source_role: Optional[str] = Field(None, description="Package role where evidence was discovered")
     source_sequence: Optional[int] = Field(None, description="Sequence index of the source image")
     source_text: Optional[str] = Field(None, description="Exact OCR text line or block matching this declaration")
+    # Phase 3 Evidence Fusion extensions (backward-compatible defaults)
+    is_corroborated: bool = Field(False, description="Flag indicating if declaration was corroborated across multiple views")
+    corroborating_sources: List[EvidenceSource] = Field(default_factory=list, description="All sources corroborating this declaration")
+    has_conflict: bool = Field(False, description="Flag indicating if competing conflicting evidence was detected for this field")
+    conflicts: List[FieldConflict] = Field(default_factory=list, description="List of conflict details for this field")
 
 
 class InspectionProcessResponse(BaseModel):
@@ -122,3 +144,6 @@ class InspectionProcessResponse(BaseModel):
     compliance_report: ComplianceReport = Field(..., description="Deterministic Legal Metrology compliance evaluation")
     provenance: Dict[str, Optional[FieldProvenance]] = Field(default_factory=dict, description="Declaration-to-image provenance map")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings encountered during processing")
+    # Phase 3 Evidence Fusion extensions (backward-compatible defaults)
+    conflicts: List[FieldConflict] = Field(default_factory=list, description="List of cross-image declaration conflicts detected")
+    is_conflicted: bool = Field(False, description="Flag indicating if any field has unresolved competing declarations")

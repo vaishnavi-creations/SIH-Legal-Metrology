@@ -16,7 +16,16 @@ SAMPLE_IMAGE_PATH = Path(__file__).resolve().parent.parent.parent / "samples" / 
 from app.db.models import Inspection, InspectionImage
 from app.ocr.ocr_service import OCRService
 from app.schemas.ocr import OCRResult, OCRTextBlock
-from app.rules.models import ComplianceStatus
+from app.schemas.inspection import (
+    FieldProvenance,
+    EvidenceSource,
+    FieldConflict,
+    InspectionProcessResponse,
+    InspectionOCRSummary
+)
+from app.rules.models import ComplianceStatus, ComplianceReport
+from app.rules.engine import rule_engine
+from app.schemas.product import StructuredProductData
 
 client = TestClient(app)
 
@@ -741,4 +750,153 @@ def test_17_real_devanagari_single_image_e2e_api():
     assert len(dev_blocks) >= 1
     assert dev_blocks[0]["script_confidence"] == 1.0
     assert "शुद्ध" in (data["structured_data"]["net_quantity"]["raw_text"] or "")
+
+
+def test_18_existing_field_provenance_construction_backward_compatible():
+    """18. Verify existing FieldProvenance construction with only legacy fields works and sets safe defaults."""
+    prov = FieldProvenance(
+        value=250.0,
+        source_image_id=1,
+        source_role="front",
+        source_sequence=1,
+        source_text="MRP Rs. 250.00"
+    )
+    assert prov.value == 250.0
+    assert prov.source_image_id == 1
+    assert prov.source_role == "front"
+    assert prov.source_sequence == 1
+    assert prov.source_text == "MRP Rs. 250.00"
+    # Phase 3 defaults must be set safely
+    assert prov.is_corroborated is False
+    assert prov.corroborating_sources == []
+    assert prov.has_conflict is False
+    assert prov.conflicts == []
+
+
+def test_19_new_field_provenance_with_corroboration_and_conflict():
+    """19. Verify FieldProvenance construction with corroborating sources and conflict details."""
+    src_front = EvidenceSource(
+        source_image_id=1,
+        source_role="front",
+        source_sequence=1,
+        source_text="MRP Rs. 250.00",
+        confidence=0.95,
+        detected_script="LATIN",
+        extracted_value=250.0
+    )
+    src_back = EvidenceSource(
+        source_image_id=2,
+        source_role="back",
+        source_sequence=2,
+        source_text="MRP Rs. 280.00",
+        confidence=0.92,
+        detected_script="LATIN",
+        extracted_value=280.0
+    )
+    conflict = FieldConflict(
+        field_name="mrp",
+        competing_values=[250.0, 280.0],
+        sources=[src_front, src_back],
+        conflict_type="VALUE_MISMATCH"
+    )
+    prov = FieldProvenance(
+        value=250.0,
+        source_image_id=1,
+        source_role="front",
+        source_sequence=1,
+        source_text="MRP Rs. 250.00",
+        is_corroborated=False,
+        has_conflict=True,
+        conflicts=[conflict]
+    )
+    assert prov.has_conflict is True
+    assert len(prov.conflicts) == 1
+    assert prov.conflicts[0].field_name == "mrp"
+    assert prov.conflicts[0].competing_values == [250.0, 280.0]
+    assert len(prov.conflicts[0].sources) == 2
+
+
+def test_20_evidence_source_serialization():
+    """20. Verify EvidenceSource serialization and deserialization roundtrip."""
+    src = EvidenceSource(
+        source_image_id=10,
+        source_role="back",
+        source_sequence=2,
+        source_text="Net Qty: 500 g / शुद्ध मात्रा ५०० ग्राम",
+        confidence=0.94,
+        detected_script="MIXED",
+        extracted_value={"value": 500.0, "unit": "g"}
+    )
+    data = src.model_dump()
+    assert data["source_image_id"] == 10
+    assert data["source_role"] == "back"
+    assert data["source_sequence"] == 2
+    assert data["detected_script"] == "MIXED"
+    assert data["confidence"] == 0.94
+    assert data["extracted_value"] == {"value": 500.0, "unit": "g"}
+
+    reconstructed = EvidenceSource.model_validate(data)
+    assert reconstructed.source_image_id == 10
+    assert reconstructed.source_text == src.source_text
+
+    # Verify safe defaults when metadata is not measured or unknown
+    unmeasured_src = EvidenceSource(source_image_id=1, source_text="Sample")
+    assert unmeasured_src.confidence is None
+    assert unmeasured_src.detected_script is None
+    assert unmeasured_src.source_sequence is None
+
+
+def test_21_field_conflict_serialization():
+    """21. Verify FieldConflict serialization and deserialization roundtrip."""
+    src1 = EvidenceSource(source_image_id=1, source_role="front", source_text="500 g", extracted_value=500.0)
+    src2 = EvidenceSource(source_image_id=2, source_role="back", source_text="200 g", extracted_value=200.0)
+    conflict = FieldConflict(
+        field_name="net_quantity",
+        competing_values=[500.0, 200.0],
+        sources=[src1, src2],
+        conflict_type="VALUE_MISMATCH"
+    )
+    data = conflict.model_dump()
+    assert data["field_name"] == "net_quantity"
+    assert data["competing_values"] == [500.0, 200.0]
+    assert len(data["sources"]) == 2
+    assert data["conflict_type"] == "VALUE_MISMATCH"
+
+    reconstructed = FieldConflict.model_validate(data)
+    assert reconstructed.field_name == "net_quantity"
+    assert len(reconstructed.sources) == 2
+
+
+def test_22_inspection_process_response_backward_compatible_construction():
+    """22. Verify InspectionProcessResponse backward-compatible instantiation without new fields."""
+    structured = StructuredProductData()
+    compliance_report = rule_engine.evaluate_compliance(structured)
+    response = InspectionProcessResponse(
+        inspection_id="test-uuid-123",
+        status="COMPLETED",
+        compliance_status="COMPLIANT",
+        images_total=1,
+        images_processed=1,
+        images=[],
+        ocr_summary=InspectionOCRSummary(
+            combined_text="sample",
+            total_blocks=1,
+            average_confidence=0.9,
+            blocks=[]
+        ),
+        structured_data=structured,
+        compliance_report=compliance_report,
+        provenance={},
+        warnings=[]
+    )
+    # Check default Phase 3 fields
+    assert response.conflicts == []
+    assert response.is_conflicted is False
+
+    dumped = response.model_dump()
+    assert "conflicts" in dumped
+    assert dumped["conflicts"] == []
+    assert "is_conflicted" in dumped
+    assert dumped["is_conflicted"] is False
+
 

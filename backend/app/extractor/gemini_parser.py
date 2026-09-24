@@ -210,6 +210,7 @@ Return ONLY a valid JSON object matching this exact structure:
             r'^(?:MRP|M\.R\.P|Maximum\s*Retail|Retail\s*Price|'
             r'Net\s*(?:Quantity|Qty|Weight|Wt|Q)|'
             r'Pkg|Mfg|Manufactur|Packed|Packer|Producer|Importer|Imported|Import|'
+            r'Factory\s*Address|Regd\s*Office|Address|Mfg\s*at|'
             r'Consumer|Customer|Grievance|Help\s*Line|Toll\s*Free|'
             r'Best\s*Before|Use\s*By|Expiry|Exp\.?\s*Date|'
             r'Batch|Lot|'
@@ -219,6 +220,7 @@ Return ONLY a valid JSON object matching this exact structure:
             r'अधिकतम\s*(?:खुदरा\s*)?मूल्य|अधिकतमखुदरामूल्य|खुदरा\s*मूल्य|मूल्य|'
             r'शुद्ध\s*मात्रा|शुद्धमात्रा|मात्रा|कुल\s*मात्रा|'
             r'निर्माता|उत्पादक|पैककर्ता|पैकर|आयातकर्ता|आयातक|'
+            r'कारखाना\s*(?:का\s*)?पता|पंजीकृत\s*कार्यालय|पता|'
             r'उपभोक्ता\s*देखभाल|उपभोक्तादेखभाल|उपभोक्ता\s*सेवा|ग्राहक\s*सेवा|ग्राहकसेवा|हेल्पलाइन|'
             r'निर्माण\s*(?:की\s*)?(?:तिथि|तारीख|माह)?|निर्माणतिथि|पैकिंग\s*(?:की\s*)?(?:तिथि|तारीख)?|पैकिंगतिथि|'
             r'उपयोग\s*की\s*अवधि|समाप्ति\s*(?:की\s*)?(?:तिथि|तारीख)?|समाप्तितिथि|अवसान\s*तिथि|'
@@ -283,10 +285,10 @@ Return ONLY a valid JSON object matching this exact structure:
                     product_name = clean_l
                     break
 
-        # If still not found, fallback to first non-marker line
+        # If still not found, fallback to first non-marker and non-header line
         if not product_name and lines:
             for line in lines:
-                if not cls._is_section_marker(line):
+                if not cls._is_section_marker(line) and not cls._is_declaration_header(line):
                     clean_l = re.sub(r'^[/\\Vv\W_]+', '', line).strip()
                     if len(clean_l) > 1:
                         product_name = clean_l

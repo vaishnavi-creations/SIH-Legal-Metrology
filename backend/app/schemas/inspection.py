@@ -90,6 +90,9 @@ class InspectionOCRBlock(BaseModel):
     confidence: float = Field(..., description="Detection confidence (0.0 to 1.0)")
     polygon: List[List[float]] = Field(..., description="Bounding polygon [[x1,y1],[x2,y2],[x3,y3],[x4,y4]]")
     box_2d: List[int] = Field(..., description="Bounding box [x_min, y_min, x_max, y_max]")
+    detected_script: str = Field("LATIN", description="Detected script category (LATIN, DEVANAGARI, MIXED, UNKNOWN)")
+    script_confidence: float = Field(1.0, description="Confidence of script classification (0.0 to 1.0)")
+
 
 
 class InspectionOCRSummary(BaseModel):

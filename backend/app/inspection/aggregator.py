@@ -50,7 +50,9 @@ class InspectionOCRAggregator:
                         text=b.text,
                         confidence=b.confidence,
                         polygon=b.polygon,
-                        box_2d=b.box_2d
+                        box_2d=b.box_2d,
+                        detected_script=getattr(b, "detected_script", "LATIN"),
+                        script_confidence=getattr(b, "script_confidence", 1.0)
                     )
                 )
                 confidences.append(b.confidence)
@@ -133,7 +135,11 @@ class InspectionOCRAggregator:
             f"₹{mrp_val}" if mrp_val is not None else None,
             f"Rs {mrp_val}" if mrp_val is not None else None,
             "MRP",
-            "M.R.P"
+            "M.R.P",
+            "अधिकतम खुदरा मूल्य",
+            "अधिकतमखुदरामूल्य",
+            "खुदरा मूल्य",
+            "मूल्य"
         ]
         provenance["mrp"] = _resolve_source(mrp_val, mrp_candidates) if mrp_val is not None else None
 
@@ -149,7 +155,10 @@ class InspectionOCRAggregator:
             "Net Qty",
             "Net Weight",
             "Net Quantity",
-            "Net Volume"
+            "Net Volume",
+            "शुद्ध मात्रा",
+            "शुद्धमात्रा",
+            "मात्रा"
         ]
         provenance["net_quantity"] = _resolve_source(net_qty_val, net_qty_candidates) if net_qty_val else None
 
@@ -162,7 +171,11 @@ class InspectionOCRAggregator:
             "Manufactured by",
             "Mfg by",
             "Packed by",
-            "Marketed by"
+            "Marketed by",
+            "निर्माता",
+            "पैककर्ता",
+            "उत्पादक",
+            "आयातकर्ता"
         ]
         provenance["manufacturer"] = _resolve_source(mfg_val, mfg_candidates) if mfg_val else None
 
@@ -178,7 +191,11 @@ class InspectionOCRAggregator:
             "Customer Care",
             "Consumer Care",
             "Toll Free",
-            "Helpline"
+            "Helpline",
+            "उपभोक्ता देखभाल",
+            "उपभोक्तादेखभाल",
+            "ग्राहक सेवा",
+            "हेल्पलाइन"
         ]
         provenance["consumer_care"] = _resolve_source(care_val, care_candidates) if care_val else None
 
@@ -198,7 +215,11 @@ class InspectionOCRAggregator:
             "Mfg Date",
             "Date of Mfg",
             "Pkd Date",
-            "Best Before"
+            "Best Before",
+            "निर्माण तिथि",
+            "निर्माणतिथि",
+            "पैकिंग तिथि",
+            "पैकिंगतिथि"
         ]
         provenance["dates"] = _resolve_source(date_val, date_candidates) if date_val else None
 
@@ -216,7 +237,10 @@ class InspectionOCRAggregator:
             structured.country_of_origin,
             "Country of Origin",
             "Made in",
-            "Manufactured in"
+            "Manufactured in",
+            "मूल देश",
+            "उत्पत्ति का देश",
+            "भारत"
         ]
         provenance["country_of_origin"] = _resolve_source(coo_val, coo_candidates) if coo_val else None
 

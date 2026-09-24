@@ -214,3 +214,220 @@ Country of Origin:India"""
     assert res.net_quantity.value == 100.0
     assert res.dates.manufacturing_date == "08/2026"
 
+
+def test_a_commodity_extraction():
+    """TEST A: Commodity extraction maps to common_or_generic_name."""
+    raw = "Commodity\n:Rice Crackers"
+    res = StructuredDataExtractor._extract_with_heuristics(raw)
+    assert res.common_or_generic_name == "Rice Crackers"
+
+
+def test_b_section_marker_rejection():
+    """TEST B: Section markers like '--- FRONT ---' are never used as product_name."""
+    raw = """--- FRONT ---
+DEMOIMPORTED
+SNACK
+SEAWEED RICECRACKERS"""
+    res = StructuredDataExtractor._extract_with_heuristics(raw)
+    assert res.product_name != "--- FRONT ---"
+    assert res.product_name == "DEMOIMPORTED"
+
+
+def test_c_importer_extraction():
+    """TEST C: Importer declaration sets entity_type='importer' and extracts multi-line address."""
+    raw = """Importer:Demo GlobalFoodsPvt.Ltd.
+UnitNo.101,AWing,TradeCentre,
+BandraKurlaComplex,Mumbai-400
+Maharashtra,India."""
+    res = StructuredDataExtractor._extract_with_heuristics(raw)
+    assert res.manufacturer.name == "Demo GlobalFoodsPvt.Ltd."
+    assert res.manufacturer.entity_type == "importer"
+    assert res.manufacturer.address is not None
+    assert "UnitNo.101" in res.manufacturer.address
+    assert "Maharashtra,India" in res.manufacturer.address
+
+
+def test_d_imported_date():
+    """TEST D: Imported date is extracted into dates.manufacturing_date."""
+    raw = "Imported:08/2026"
+    res = StructuredDataExtractor._extract_with_heuristics(raw)
+    assert res.dates.manufacturing_date == "08/2026"
+
+
+def test_e_ocr_mrp_inclusive_phrase():
+    """TEST E: Tolerates OCR artifacts like '(lnclusiveofalltaxes)' with 'l' instead of 'i'."""
+    raw = "MRP\n：120.00(lnclusiveofalltaxes)"
+    res = StructuredDataExtractor._extract_with_heuristics(raw)
+    assert res.mrp.value == 120.0
+    assert res.mrp.includes_taxes is True
+
+
+def test_f_full_real_ocr_regression_case():
+    """TEST F: Full regression test for real imported packaged snack OCR."""
+    raw_ocr = """--- FRONT ---
+DEMOIMPORTED
+SNACK
+SEAWEED RICECRACKERS
+ORIGINALFLAVOUR
+/Crispy
+VLight&Tasty
+/AuthenticJapanese
+Style
+Commodity
+:Rice Crackers
+NetQuantity
+：150g
+MRP
+：120.00(lnclusiveofalltaxes)
+Imported
+：08/2026
+Importer
+:Demo GlobalFoodsPvt.Ltd.
+UnitNo.101,AWing,TradeCentre,
+BandraKurlaComplex,Mumbai-400
+Maharashtra,India.
+ConsumerCare :Forfeedback/complaints,contact
+our ConsumerCareExecutiveat:
+Phone:+919987654321
+Email:care@demoglobal.in
+Countryof Origin:Japan"""
+
+    res = StructuredDataExtractor._extract_with_heuristics(raw_ocr)
+
+    # 1. Commodity / Generic Name
+    assert res.common_or_generic_name == "Rice Crackers"
+
+    # 2. Product Name (never provenance marker)
+    assert res.product_name != "--- FRONT ---"
+    assert res.product_name == "DEMOIMPORTED"
+
+    # 3. Importer Details
+    assert res.manufacturer.name == "Demo GlobalFoodsPvt.Ltd."
+    assert res.manufacturer.entity_type == "importer"
+    assert res.manufacturer.address is not None
+    assert "UnitNo.101" in res.manufacturer.address
+    assert "TradeCentre" in res.manufacturer.address
+    assert "Maharashtra,India" in res.manufacturer.address
+
+    # 4. Imported Date
+    assert res.dates.manufacturing_date == "08/2026"
+
+    # 5. MRP & Taxes
+    assert res.mrp.value == 120.0
+    assert res.mrp.includes_taxes is True
+
+    # 6. Country of Origin
+    assert res.country_of_origin == "Japan"
+
+    # 7. Consumer Care
+    assert res.consumer_care.email == "care@demoglobal.in"
+    assert res.consumer_care.phone == "+919987654321"
+
+    # 8. Net Quantity
+    assert res.net_quantity.value == 150.0
+    assert res.net_quantity.unit == "g"
+
+    # 9. Unit Sale Price is None (not present in OCR, do not invent)
+    assert res.unit_sale_price is None
+
+
+def test_devanagari_mrp_standard():
+    """Test 1: 'अधिकतम खुदरा मूल्य ₹120' -> mrp.value = 120.0"""
+    res = StructuredDataExtractor._extract_with_heuristics("अधिकतम खुदरा मूल्य ₹120")
+    assert res.mrp.value == 120.0
+
+
+def test_devanagari_mrp_collapsed_spaces():
+    """Test 2: 'अधिकतमखुदरामूल्य 120' -> mrp.value = 120.0"""
+    res = StructuredDataExtractor._extract_with_heuristics("अधिकतमखुदरामूल्य 120")
+    assert res.mrp.value == 120.0
+
+
+def test_devanagari_net_quantity_standard():
+    """Test 3: 'शुद्ध मात्रा 150 ग्राम' -> net_quantity.value = 150.0, unit = 'g'"""
+    res = StructuredDataExtractor._extract_with_heuristics("शुद्ध मात्रा 150 ग्राम")
+    assert res.net_quantity.value == 150.0
+    assert res.net_quantity.unit == "g"
+
+
+def test_devanagari_net_quantity_collapsed_spaces():
+    """Test 4: 'शुद्धमात्रा 150 ग्राम' -> net_quantity.value = 150.0, unit = 'g'"""
+    res = StructuredDataExtractor._extract_with_heuristics("शुद्धमात्रा 150 ग्राम")
+    assert res.net_quantity.value == 150.0
+    assert res.net_quantity.unit == "g"
+
+
+def test_devanagari_manufacturer():
+    """Test 5: 'निर्माता: स्वादिष्ट फूड्स' -> manufacturer.name contains 'स्वादिष्ट फूड्स', entity_type = 'manufacturer'"""
+    res = StructuredDataExtractor._extract_with_heuristics("निर्माता: स्वादिष्ट फूड्स")
+    assert "स्वादिष्ट फूड्स" in (res.manufacturer.name or "")
+    assert res.manufacturer.entity_type == "manufacturer"
+
+
+def test_devanagari_consumer_care():
+    """Test 6: 'उपभोक्ता देखभाल' -> consumer care recognized"""
+    res = StructuredDataExtractor._extract_with_heuristics("उपभोक्ता देखभाल")
+    assert res.consumer_care.raw_text is not None
+    assert "उपभोक्ता देखभाल" in res.consumer_care.raw_text
+
+
+def test_devanagari_dates():
+    """Test 7: 'निर्माण तिथि: 08/2026' -> dates.manufacturing_date = '08/2026'"""
+    res = StructuredDataExtractor._extract_with_heuristics("निर्माण तिथि: 08/2026")
+    assert res.dates.manufacturing_date == "08/2026"
+
+
+def test_mixed_script_mrp():
+    """Test 8: 'MRP 120 / अधिकतम खुदरा मूल्य' -> mrp.value = 120.0"""
+    res = StructuredDataExtractor._extract_with_heuristics("MRP 120 / अधिकतम खुदरा मूल्य")
+    assert res.mrp.value == 120.0
+
+
+def test_mixed_script_net_quantity():
+    """Test 9: 'Net Quantity 150 g / शुद्ध मात्रा' -> net_quantity.value = 150.0, unit = 'g'"""
+    res = StructuredDataExtractor._extract_with_heuristics("Net Quantity 150 g / शुद्ध मात्रा")
+    assert res.net_quantity.value == 150.0
+    assert res.net_quantity.unit == "g"
+
+
+def test_devanagari_isolated_keyword_rejection():
+    """Test 10: 'मूल्य' -> mrp.value is None (no number invented)"""
+    res = StructuredDataExtractor._extract_with_heuristics("मूल्य")
+    assert res.mrp.value is None
+
+
+def test_devanagari_corrupted_numeral_rejection():
+    """Test 11: 'शुद्धमात्रा Iड० ग्राम' -> net_quantity.value is None (ambiguous token rejected)"""
+    res = StructuredDataExtractor._extract_with_heuristics("शुद्धमात्रा Iड० ग्राम")
+    assert res.net_quantity.value is None
+
+
+def test_multilingual_combined_label():
+    """Test 12: Combined multilingual label declaration extraction."""
+    raw = """--- FRONT ---
+स्वादिष्ट बिस्कुट
+Common Name: Butter Biscuits
+शुद्धमात्रा 150 ग्राम
+MRP: ₹120 (सभी करों सहित)
+निर्माण तिथि: 08/2026
+निर्माता: स्वादिष्ट फूड्स प्रा. लि.
+पता: 123 औद्योगिक क्षेत्र, पुणे - 411001
+उपभोक्ता देखभाल: 1800-111-2222 | care@swadisht.in
+उत्पत्ति का देश: भारत
+"""
+    res = StructuredDataExtractor._extract_with_heuristics(raw)
+    assert res.product_name == "स्वादिष्ट बिस्कुट"
+    assert res.common_or_generic_name == "Butter Biscuits"
+    assert res.net_quantity.value == 150.0
+    assert res.net_quantity.unit == "g"
+    assert res.mrp.value == 120.0
+    assert res.mrp.includes_taxes is True
+    assert res.dates.manufacturing_date == "08/2026"
+    assert "स्वादिष्ट फूड्स" in (res.manufacturer.name or "")
+    assert res.manufacturer.pincode == "411001"
+    assert res.consumer_care.phone == "1800-111-2222"
+    assert res.consumer_care.email == "care@swadisht.in"
+    assert res.country_of_origin == "भारत"
+
+
+

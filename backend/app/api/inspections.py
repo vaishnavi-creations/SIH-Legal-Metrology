@@ -14,9 +14,11 @@ from app.schemas.inspection import (
     InspectionDetailResponse,
     InspectionImageResponse,
     InspectionDeleteResponse,
-    InspectionImageDeleteResponse
+    InspectionImageDeleteResponse,
+    InspectionProcessResponse
 )
 from app.ocr.preprocessor import ImagePreprocessor
+from app.inspection.processor import InspectionProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -297,3 +299,24 @@ def delete_inspection(
         message=f"Inspection '{inspection_id}' and all associated images successfully deleted.",
         inspection_id=inspection_id
     )
+
+
+@router.post(
+    "/{inspection_id}/process",
+    response_model=InspectionProcessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Process all inspection images through OCR, extraction, and compliance rules"
+)
+async def process_inspection(
+    inspection_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Executes complete end-to-end multi-image inspection processing:
+    1. Sequentially runs OpenCV preprocessing and RapidOCR on each attached image.
+    2. Combines OCR detections across all package views with provenance tags.
+    3. Executes structured extraction once on the aggregated text representation.
+    4. Evaluates extracted declarations once against statutory Legal Metrology rules.
+    5. Persists the unified inspection results and returns the complete compliance audit.
+    """
+    return await InspectionProcessor.process_inspection(db=db, inspection_id=inspection_id)

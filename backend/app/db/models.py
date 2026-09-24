@@ -79,6 +79,13 @@ class Inspection(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc), server_default=func.now(), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
+    # Inspection processing and compliance result fields
+    compliance_status = Column(String(50), nullable=True, index=True)
+    compliance_report_json = Column(Text, nullable=True)
+    structured_data_json = Column(Text, nullable=True)
+    ocr_summary_json = Column(Text, nullable=True)
+    provenance_json = Column(Text, nullable=True)
+
     # Bidirectional relationship to associated package images
     images = relationship("InspectionImage", back_populates="inspection", cascade="all, delete-orphan", order_by="InspectionImage.sequence")
 
@@ -103,6 +110,10 @@ class InspectionImage(Base):
     sequence = Column(Integer, nullable=False, default=1)
     processing_status = Column(String(50), nullable=False, default="PENDING")
     uploaded_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(datetime.timezone.utc), server_default=func.now())
+
+    # Per-image OCR output and processing diagnostics
+    ocr_result_json = Column(Text, nullable=True)
+    processing_error = Column(Text, nullable=True)
 
     # Bidirectional relationship back to parent inspection
     inspection = relationship("Inspection", back_populates="images")

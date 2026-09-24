@@ -91,5 +91,61 @@ export const apiService = {
       method: 'DELETE',
     });
     return handleResponse(res);
+  },
+
+  /**
+   * Create a new product inspection session.
+   * POST /api/v1/inspections
+   */
+  async createInspection(metadata = {}) {
+    const res = await fetch(`${API_BASE}/v1/inspections`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(metadata),
+    });
+    return handleResponse(res);
+  },
+
+  /**
+   * Attach an image to an existing inspection session.
+   * POST /api/v1/inspections/{inspection_id}/images
+   */
+  async uploadInspectionImage(inspectionId, file, imageRole = 'front', sequence = null) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('image_role', imageRole);
+    if (sequence !== null && sequence !== undefined) {
+      formData.append('sequence', String(sequence));
+    }
+
+    const res = await fetch(`${API_BASE}/v1/inspections/${encodeURIComponent(inspectionId)}/images`, {
+      method: 'POST',
+      body: formData,
+    });
+    return handleResponse(res);
+  },
+
+  /**
+   * Process all images in an inspection through OCR, extraction, evidence fusion, and compliance rules.
+   * POST /api/v1/inspections/{inspection_id}/process
+   */
+  async processInspection(inspectionId) {
+    const res = await fetch(`${API_BASE}/v1/inspections/${encodeURIComponent(inspectionId)}/process`, {
+      method: 'POST',
+    });
+    return handleResponse(res);
+  },
+
+  /**
+   * Retrieve inspection metadata, attached images, declarations, and violations.
+   * GET /api/v1/inspections/{inspection_id}
+   */
+  async getInspection(inspectionId) {
+    const res = await fetch(`${API_BASE}/v1/inspections/${encodeURIComponent(inspectionId)}`, {
+      method: 'GET',
+    });
+    return handleResponse(res);
   }
 };

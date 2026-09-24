@@ -82,6 +82,10 @@ class Inspection(Base):
     # Bidirectional relationship to associated package images
     images = relationship("InspectionImage", back_populates="inspection", cascade="all, delete-orphan", order_by="InspectionImage.sequence")
 
+    @property
+    def image_count(self) -> int:
+        return len(self.images) if self.images else 0
+
 
 class InspectionImage(Base):
     """

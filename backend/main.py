@@ -8,6 +8,7 @@ from app.api.ocr import router as ocr_router
 from app.api.extract import router as extract_router
 from app.api.compliance import router as compliance_router
 from app.api.history import router as history_router
+from app.api.inspections import router as inspections_router
 from app.db.session import init_db
 
 # Initialize SQLite Database tables on startup
@@ -43,6 +44,7 @@ app.include_router(ocr_router, prefix=settings.API_V1_STR)
 app.include_router(extract_router, prefix=settings.API_V1_STR)
 app.include_router(compliance_router, prefix=settings.API_V1_STR)
 app.include_router(history_router, prefix=settings.API_V1_STR)
+app.include_router(inspections_router)
 
 @app.get("/", tags=["Root"])
 def root():

@@ -15,7 +15,8 @@ from app.schemas.inspection import (
     InspectionImageResponse,
     InspectionDeleteResponse,
     InspectionImageDeleteResponse,
-    InspectionProcessResponse
+    InspectionProcessResponse,
+    InspectionProcessRequest
 )
 from app.ocr.preprocessor import ImagePreprocessor
 from app.inspection.processor import InspectionProcessor
@@ -309,6 +310,7 @@ def delete_inspection(
 )
 async def process_inspection(
     inspection_id: str,
+    payload: Optional[InspectionProcessRequest] = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -319,4 +321,5 @@ async def process_inspection(
     4. Evaluates extracted declarations once against statutory Legal Metrology rules.
     5. Persists the unified inspection results and returns the complete compliance audit.
     """
-    return await InspectionProcessor.process_inspection(db=db, inspection_id=inspection_id)
+    channel = payload.market_channel if payload else None
+    return await InspectionProcessor.process_inspection(db=db, inspection_id=inspection_id, market_channel=channel)

@@ -90,8 +90,37 @@ class LegalMetrologyRuleEngine:
         rules_insufficient = 0
         rules_not_applicable = 0
 
+        # Determine Chapter II applicability
+        chapter_ii_applicable = True
+        chapter_ii_basis = "Rule 3(b)"
+        if context:
+            if context.get("chapter_ii_applicable") is False:
+                chapter_ii_applicable = False
+            elif "context_provenance" in context and isinstance(context["context_provenance"], dict):
+                stat_det = context["context_provenance"].get("statutory_determination")
+                if isinstance(stat_det, dict):
+                    if stat_det.get("chapter_ii_applicable") is False:
+                        chapter_ii_applicable = False
+                    if stat_det.get("statutory_basis"):
+                        chapter_ii_basis = stat_det["statutory_basis"]
+
         # 2. Iterate through all registered statutory rules
         for rule in self.rules:
+            if not chapter_ii_applicable:
+                rules_not_applicable += 1
+                checks.append(
+                    RuleCheckResult(
+                        rule_id=rule.rule_id,
+                        legal_reference=rule.legal_reference,
+                        field_checked=rule.field_checked,
+                        extracted_value=None,
+                        expected_requirement=rule.description,
+                        status=RuleStatus.NOT_APPLICABLE,
+                        explanation=f"Chapter II not applicable under {chapter_ii_basis}."
+                    )
+                )
+                continue
+
             if not rule.is_applicable(product, ctx):
                 rules_not_applicable += 1
                 checks.append(
@@ -144,7 +173,13 @@ class LegalMetrologyRuleEngine:
         # 3. Determine Overall Compliance Status
         total_applicable = rules_passed + rules_failed + rules_insufficient
 
-        if exemptions_applied and rules_failed == 0:
+        if not chapter_ii_applicable:
+            compliance_status = ComplianceStatus.NOT_APPLICABLE
+            summary = (
+                f"NOT APPLICABLE: Package qualifies for Chapter II exclusion under {chapter_ii_basis}. "
+                "Standard retail packaging declarations do not govern this package."
+            )
+        elif exemptions_applied and rules_failed == 0:
             compliance_status = ComplianceStatus.COMPLIANT
             summary = (
                 f"COMPLIANT (Exempted): Product qualifies for statutory exemption: {'; '.join(exemptions_applied)}. "

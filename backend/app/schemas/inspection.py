@@ -11,6 +11,11 @@ class InspectionCreate(BaseModel):
     is_imported: bool = Field(False, description="Flag indicating if the commodity is imported into India")
     commodity_type: Optional[str] = Field(None, description="Category or commodity classification")
     inspection_notes: Optional[str] = Field(None, description="Field inspection notes or auditor comments")
+    market_channel: Optional[str] = Field(None, description="Claimed market channel (RETAIL, INSTITUTIONAL, INDUSTRIAL, ECOMMERCE, EXPORT, UNKNOWN)")
+
+
+class InspectionProcessRequest(BaseModel):
+    market_channel: Optional[str] = Field(None, description="Claimed market channel (RETAIL, INSTITUTIONAL, INDUSTRIAL, ECOMMERCE, EXPORT, UNKNOWN)")
 
 
 class InspectionImageResponse(BaseModel):
@@ -144,6 +149,6 @@ class InspectionProcessResponse(BaseModel):
     compliance_report: ComplianceReport = Field(..., description="Deterministic Legal Metrology compliance evaluation")
     provenance: Dict[str, Optional[FieldProvenance]] = Field(default_factory=dict, description="Declaration-to-image provenance map")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings encountered during processing")
-    # Phase 3 Evidence Fusion extensions (backward-compatible defaults)
     conflicts: List[FieldConflict] = Field(default_factory=list, description="List of cross-image declaration conflicts detected")
     is_conflicted: bool = Field(False, description="Flag indicating if any field has unresolved competing declarations")
+    context_provenance: Optional[Dict[str, Any]] = Field(default=None, description="Context source and conflict diagnostics")

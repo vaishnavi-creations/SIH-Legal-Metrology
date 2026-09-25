@@ -33,10 +33,20 @@ const VALID_ROLES = [
   { value: 'other', label: 'Other Package Face' },
 ];
 
+const MARKET_CHANNELS = [
+  { value: 'RETAIL', label: 'RETAIL — Domestic Retail' },
+  { value: 'INSTITUTIONAL', label: 'INSTITUTIONAL — Institutional Consumer' },
+  { value: 'INDUSTRIAL', label: 'INDUSTRIAL — Industrial Consumer' },
+  { value: 'ECOMMERCE', label: 'ECOMMERCE — E-Commerce' },
+  { value: 'EXPORT', label: 'EXPORT — Export' },
+  { value: 'UNKNOWN', label: 'UNKNOWN — Unspecified' },
+];
+
 export function ImageUploader({ onStartScan, isScanning }) {
   const [images, setImages] = useState([]);
   const [isImported, setIsImported] = useState(false);
   const [commodityType, setCommodityType] = useState('');
+  const [marketChannel, setMarketChannel] = useState('RETAIL');
   const [dragOver, setDragOver] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
@@ -186,9 +196,9 @@ export function ImageUploader({ onStartScan, isScanning }) {
       setErrorMsg('Please select or drag at least one image of a packaged commodity to inspect.');
       return;
     }
-    // Backward-compatible invocation: passes primary file first, while also providing the image queue
+    // Backward-compatible invocation: passes primary file first, while also providing the image queue and market channel
     const primaryFile = images[0].file;
-    onStartScan(primaryFile, isImported, commodityType, images);
+    onStartScan(primaryFile, isImported, commodityType, images, marketChannel);
   };
 
   return (
@@ -436,22 +446,41 @@ export function ImageUploader({ onStartScan, isScanning }) {
                     />
                   </div>
 
-                  {/* Imported Commodity Toggle */}
-                  <div className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50">
-                    <input
-                      type="checkbox"
-                      id="importedCommodityToggle"
-                      checked={isImported}
-                      onChange={(e) => setIsImported(e.target.checked)}
-                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 mt-0.5 cursor-pointer"
-                    />
-                    <label htmlFor="importedCommodityToggle" className="text-xs text-slate-700 cursor-pointer">
-                      <span className="font-bold text-navy-950 block">Imported Commodity</span>
-                      <span className="text-[11px] text-slate-500 block leading-tight mt-0.5">
-                        Enables Rule 6(10) importer and Country of Origin checks
-                      </span>
+                  {/* Market Channel */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                      <Scale size={13} className="text-slate-400" />
+                      <span>Market Channel</span>
                     </label>
+                    <select
+                      value={marketChannel}
+                      onChange={(e) => setMarketChannel(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-500 bg-slate-50/50 cursor-pointer"
+                    >
+                      {MARKET_CHANNELS.map((ch) => (
+                        <option key={ch.value} value={ch.value}>
+                          {ch.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+
+                {/* Imported Commodity Toggle */}
+                <div className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50">
+                  <input
+                    type="checkbox"
+                    id="importedCommodityToggle"
+                    checked={isImported}
+                    onChange={(e) => setIsImported(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 mt-0.5 cursor-pointer"
+                  />
+                  <label htmlFor="importedCommodityToggle" className="text-xs text-slate-700 cursor-pointer">
+                    <span className="font-bold text-navy-950 block">Imported Commodity</span>
+                    <span className="text-[11px] text-slate-500 block leading-tight mt-0.5">
+                      Enables Rule 6(10) importer and Country of Origin checks
+                    </span>
+                  </label>
                 </div>
               </div>
 

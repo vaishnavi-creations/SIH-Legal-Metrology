@@ -131,10 +131,17 @@ export const apiService = {
    * Process all images in an inspection through OCR, extraction, evidence fusion, and compliance rules.
    * POST /api/v1/inspections/{inspection_id}/process
    */
-  async processInspection(inspectionId) {
-    const res = await fetch(`${API_BASE}/v1/inspections/${encodeURIComponent(inspectionId)}/process`, {
+  async processInspection(inspectionId, payload = null) {
+    const fetchOptions = {
       method: 'POST',
-    });
+    };
+    if (payload) {
+      fetchOptions.headers = {
+        'Content-Type': 'application/json',
+      };
+      fetchOptions.body = JSON.stringify(payload);
+    }
+    const res = await fetch(`${API_BASE}/v1/inspections/${encodeURIComponent(inspectionId)}/process`, fetchOptions);
     return handleResponse(res);
   },
 

@@ -62,7 +62,17 @@ export function ComplianceBadge({ status, size = 'normal' }) {
       );
 
     case 'NOT_APPLICABLE':
-      return (
+      return size === 'large' ? (
+        <span className={`inline-flex items-center gap-2 rounded-full bg-slate-100 text-slate-800 border border-slate-300 shadow-2xs ${sizeClasses}`}>
+          <MinusCircle size={iconSize} className="text-slate-600 shrink-0" />
+          <span>NOT APPLICABLE (RULE 3)</span>
+        </span>
+      ) : size === 'normal' ? (
+        <span className={`inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs ${sizeClasses}`}>
+          <MinusCircle size={iconSize} className="text-slate-500 shrink-0" />
+          <span>NOT APPLICABLE</span>
+        </span>
+      ) : (
         <span className={`inline-flex items-center gap-1.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-mono ${sizeClasses}`}>
           <MinusCircle size={iconSize} className="text-slate-400 shrink-0" />
           <span>N/A</span>

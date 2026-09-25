@@ -67,7 +67,7 @@ export function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const handleStartScan = async (file, isImported, commodityType, images = []) => {
+  const handleStartScan = async (file, isImported, commodityType, images = [], marketChannel = 'RETAIL') => {
     const primaryFile = (images && images.length > 0 && images[0]?.file) ? images[0].file : file;
     setScanningFile(primaryFile);
     const pUrl = URL.createObjectURL(primaryFile);
@@ -83,6 +83,7 @@ export function App() {
         const session = await apiService.createInspection({
           is_imported: Boolean(isImported),
           commodity_type: commodityType?.trim() || null,
+          market_channel: marketChannel || null,
         });
 
         const inspectionId = session.inspection_id;
@@ -98,7 +99,9 @@ export function App() {
         }
 
         // Step 3: Process the complete inspection through Evidence Fusion
-        const processResponse = await apiService.processInspection(inspectionId);
+        const processResponse = await apiService.processInspection(inspectionId, {
+          market_channel: marketChannel || null,
+        });
 
         // Step 4: Map process response into the shape expected by ResultsView
         const mappedResult = {
@@ -118,6 +121,7 @@ export function App() {
           is_conflicted: Boolean(processResponse.is_conflicted),
           images: processResponse.images || [],
           warnings: processResponse.warnings || [],
+          context_provenance: processResponse.context_provenance || null,
         };
 
         setScanResult(mappedResult);

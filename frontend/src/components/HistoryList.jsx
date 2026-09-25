@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 
 const PAGE_SIZE = 10;
-const STATUS_FILTERS = ['ALL', 'COMPLIANT', 'NON_COMPLIANT', 'INSUFFICIENT_DATA'];
+const STATUS_FILTERS = ['ALL', 'COMPLIANT', 'NON_COMPLIANT', 'NOT_APPLICABLE', 'INSUFFICIENT_DATA'];
 
 export function HistoryList() {
   const [items, setItems] = useState([]);

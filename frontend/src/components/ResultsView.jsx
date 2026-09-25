@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Layers
+  Layers,
+  Scale
 } from 'lucide-react';
 
 const ROLE_NAMES = {
@@ -90,6 +91,41 @@ export function ResultsView({ result, onBackToScan }) {
   const warningCount = warnings.length;
 
   const productName = structured.product_name || structured.common_or_generic_name || 'Packaged Commodity';
+
+  // Market Context & Statutory Scoping (Phase 4C)
+  const contextProv = result.context_provenance || null;
+  const marketCtx = contextProv?.market_context || null;
+  const statutoryDet = contextProv?.statutory_determination || null;
+  const physicalSignals = contextProv?.physical_signals || null;
+  const diagnostics = contextProv?.diagnostics || null;
+
+  const claimedChannel = marketCtx?.claimed_channel || contextProv?.explicit?.claimed_channel || (status === 'NOT_APPLICABLE' ? 'NON-RETAIL' : 'RETAIL');
+  const normalizedChannel = marketCtx?.normalized_channel || (claimedChannel ? String(claimedChannel).toUpperCase() : 'RETAIL');
+
+  const chapterIiApplicable = statutoryDet?.chapter_ii_applicable !== undefined
+    ? statutoryDet.chapter_ii_applicable
+    : (status !== 'NOT_APPLICABLE');
+
+  const statutoryBasis = statutoryDet?.statutory_basis || (chapterIiApplicable ? 'Rule 3 (Standard Domestic Retail)' : 'Rule 3(b) Exclusion');
+
+  const detectedMarkings = [];
+  if (physicalSignals?.not_for_retail_sale_detected) {
+    detectedMarkings.push('NOT FOR RETAIL SALE');
+  }
+  if (physicalSignals?.for_industrial_use_only_detected) {
+    detectedMarkings.push('FOR INDUSTRIAL USE ONLY');
+  }
+  if (physicalSignals?.for_export_only_detected) {
+    detectedMarkings.push('FOR EXPORT ONLY');
+  }
+  if (Array.isArray(physicalSignals?.statutory_declarations)) {
+    detectedMarkings.push(...physicalSignals.statutory_declarations);
+  }
+  if (Array.isArray(physicalSignals?.phrases_found)) {
+    detectedMarkings.push(...physicalSignals.phrases_found);
+  }
+
+  const corroborationAnomalies = diagnostics?.anomalies || diagnostics?.conflicts || contextProv?.conflicts || [];
 
   return (
     <div className="max-w-7xl mx-auto py-8 sm:py-10 px-4 sm:px-6 lg:px-8 space-y-8">
@@ -250,6 +286,95 @@ export function ResultsView({ result, onBackToScan }) {
             </div>
           </div>
         )}
+
+        {/* Market Context & Statutory Scoping Panel */}
+        <div className={`p-4 sm:p-5 rounded-xl border ${!chapterIiApplicable ? 'bg-slate-50/90 border-slate-300' : 'bg-slate-50/60 border-slate-200'} space-y-3`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <Scale size={18} className="text-emerald-600 shrink-0" />
+              <h3 className="text-xs sm:text-sm font-bold text-navy-950 uppercase tracking-wide">
+                Market Context &amp; Statutory Scoping
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {claimedChannel && (
+                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-navy-100 text-navy-900 border border-navy-200">
+                  Channel: {claimedChannel}
+                </span>
+              )}
+              <span className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded border ${
+                !chapterIiApplicable
+                  ? 'bg-purple-50 text-purple-900 border-purple-300'
+                  : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+              }`}>
+                {chapterIiApplicable ? 'Chapter II Applicable' : 'Chapter II — NOT APPLICABLE'}
+              </span>
+            </div>
+          </div>
+
+          {/* Statutory Determination & Basis */}
+          <div className="text-xs space-y-1.5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <span className="font-bold text-slate-700">Statutory Basis:</span>
+              <span className="font-mono text-navy-900 font-semibold">{statutoryBasis}</span>
+            </div>
+            {!chapterIiApplicable && (
+              <div className="p-3 rounded-lg bg-purple-50/80 border border-purple-200 text-xs font-semibold text-purple-950 leading-relaxed">
+                <span className="font-bold uppercase tracking-wider block text-purple-900 mb-0.5">
+                  Chapter II — NOT APPLICABLE
+                </span>
+                <span>
+                  Package qualifies for exclusion under {statutoryBasis}. Standard mandatory domestic retail declarations (MRPs, dates, retail units) are not enforced for this packaging context.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Physical Packaging Markings */}
+          {detectedMarkings.length > 0 && (
+            <div className="pt-1">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                Detected Physical Statutory Markings
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {detectedMarkings.map((marking, mIdx) => (
+                  <span
+                    key={mIdx}
+                    className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-300"
+                  >
+                    <Check size={11} className="text-emerald-700" />
+                    <span>&ldquo;{marking}&rdquo;</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Corroboration Warnings / Anomalies */}
+          {corroborationAnomalies.length > 0 && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-950 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900">
+                <AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                <span>Market Channel Corroboration Warning</span>
+              </div>
+              <div className="space-y-1 text-xs text-amber-900">
+                {corroborationAnomalies.map((anomaly, aIdx) => (
+                  <p key={aIdx} className="leading-relaxed">
+                    {typeof anomaly === 'string'
+                      ? anomaly
+                      : anomaly.message || anomaly.description || JSON.stringify(anomaly)}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Evidentiary Boundary Notice */}
+          <div className="p-2.5 rounded-lg bg-slate-100/80 border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
+            <span className="font-bold text-slate-700">Evidentiary Boundary:</span> Physical packaging inspection verifies container surface markings only. It does not independently verify B2B commercial invoices, supply agreements, customs export transit bills (Chapter IV Rule 25), or digital marketplace listings (Rule 6(10A)).
+          </div>
+        </div>
 
         {/* Cross-Image Declaration Conflicts Alert */}
         {(result.is_conflicted || (result.conflicts && result.conflicts.length > 0)) && (

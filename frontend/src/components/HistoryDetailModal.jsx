@@ -4,19 +4,21 @@ import { ComplianceBadge } from './ComplianceBadge';
 import { ProductAttributes } from './ProductAttributes';
 import { RuleCheckCard } from './RuleCheckCard';
 import { getFullImageUrl, formatDate } from '../utils/formatters';
-import { X, Loader2, AlertCircle, FileText, Scale, Eye, AlertOctagon, AlertTriangle } from 'lucide-react';
+import { X, Loader2, AlertCircle, FileText, Scale, Eye, AlertOctagon, AlertTriangle, Layers } from 'lucide-react';
 
 export function HistoryDetailModal({ fileId, isOpen, onClose }) {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('checklist'); // 'checklist' | 'ocr'
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     if (!isOpen || !fileId) return;
 
     setLoading(true);
     setError(null);
+    setSelectedImageIndex(0);
 
     apiService.getScanDetail(fileId)
       .then((data) => {
@@ -37,7 +39,11 @@ export function HistoryDetailModal({ fileId, isOpen, onClose }) {
   const violations = report?.violations || [];
   const warnings = report?.warnings || [];
 
-  const imageUrl = detail?.image_url ? getFullImageUrl(detail.image_url) : null;
+  const images = detail?.images || [];
+  const activeImageRecord = images[selectedImageIndex] || images[0];
+  const activeImageUrl = activeImageRecord?.image_path
+    ? getFullImageUrl(activeImageRecord.image_path)
+    : (detail?.image_url ? getFullImageUrl(detail.image_url) : null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-navy-950/70 backdrop-blur-xs overflow-y-auto">
@@ -48,9 +54,17 @@ export function HistoryDetailModal({ fileId, isOpen, onClose }) {
           <div className="flex items-center gap-2.5">
             <Scale size={20} className="text-emerald-400" />
             <div>
-              <h3 className="font-bold text-sm sm:text-base">
-                Inspection Audit Trail
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm sm:text-base">
+                  Inspection Audit Trail
+                </h3>
+                {detail?.inspection_type === 'multi' && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-900/60 text-blue-200 border border-blue-700/60 flex items-center gap-1">
+                    <Layers size={11} className="text-blue-300" />
+                    {detail.image_count || images.length} Views
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-slate-400 font-mono">
                 {fileId} • {detail?.uploaded_at ? formatDate(detail.uploaded_at) : ''}
               </p>
@@ -80,6 +94,32 @@ export function HistoryDetailModal({ fileId, isOpen, onClose }) {
             </div>
           ) : detail ? (
             <>
+              {/* Conflict Alert Banner */}
+              {detail.is_conflicted && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 space-y-2">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                    <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+                    <span>Cross-Image Declaration Conflict Detected</span>
+                  </div>
+                  <p className="text-xs text-amber-800">
+                    Contradictory statutory values were detected across package faces without silent resolution.
+                  </p>
+                  {detail.conflicts && detail.conflicts.length > 0 && (
+                    <div className="mt-2 space-y-1.5">
+                      {detail.conflicts.map((conf, idx) => (
+                        <div key={idx} className="bg-white/80 p-2 rounded-lg border border-amber-200 text-xs">
+                          <span className="font-bold text-navy-900 uppercase font-mono mr-2">{conf.field_name}:</span>
+                          <span className="text-slate-600">Competing values: </span>
+                          <span className="font-semibold text-amber-900">
+                            {conf.competing_values ? conf.competing_values.join(' vs ') : 'Contradictory declarations'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Verdict Summary Card */}
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
@@ -107,20 +147,59 @@ export function HistoryDetailModal({ fileId, isOpen, onClose }) {
               {/* Image & Extracted Attributes Grid */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 
-                {/* Photo */}
-                {imageUrl && (
-                  <div className="md:col-span-5 bg-slate-900 rounded-lg p-2 border border-slate-200 flex items-center justify-center max-h-64 overflow-hidden">
-                    <img
-                      src={imageUrl}
-                      alt="Preprocessed Package"
-                      className="max-h-60 w-auto object-contain rounded"
-                    />
+                {/* Photo Panel */}
+                {activeImageUrl && (
+                  <div className="md:col-span-5 flex flex-col gap-2">
+                    <div className="bg-slate-900 rounded-lg p-2 border border-slate-200 flex items-center justify-center max-h-64 overflow-hidden relative">
+                      <img
+                        src={activeImageUrl}
+                        alt="Preprocessed Package"
+                        className="max-h-60 w-auto object-contain rounded"
+                      />
+                      {activeImageRecord?.image_role && (
+                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-navy-950/80 text-white backdrop-blur-xs border border-white/20">
+                          {activeImageRecord.image_role}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Multi-view thumbnail selector */}
+                    {images.length > 1 && (
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                        {images.map((img, idx) => {
+                          const isSelected = idx === selectedImageIndex;
+                          const tUrl = img.image_path ? getFullImageUrl(img.image_path) : null;
+                          return (
+                            <button
+                              key={img.id || idx}
+                              type="button"
+                              onClick={() => setSelectedImageIndex(idx)}
+                              className={`flex-shrink-0 w-12 h-12 rounded-lg border-2 overflow-hidden transition-all relative cursor-pointer ${
+                                isSelected ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-slate-200 opacity-60 hover:opacity-100'
+                              }`}
+                              title={`View ${img.image_role || `Face ${idx + 1}`}`}
+                            >
+                              {tUrl ? (
+                                <img src={tUrl} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-slate-100 flex items-center justify-center text-[10px] text-slate-500 font-bold">
+                                  #{img.sequence || idx + 1}
+                                </div>
+                              )}
+                              <span className="absolute bottom-0 inset-x-0 bg-navy-950/75 text-white text-[8px] text-center font-bold truncate px-0.5">
+                                {img.image_role || `#${idx + 1}`}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Structured Attributes */}
-                <div className={imageUrl ? "md:col-span-7" : "md:col-span-12"}>
-                  <ProductAttributes data={structured} />
+                <div className={activeImageUrl ? "md:col-span-7" : "md:col-span-12"}>
+                  <ProductAttributes data={structured} provenance={detail?.provenance} />
                 </div>
 
               </div>

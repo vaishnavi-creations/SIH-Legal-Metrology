@@ -20,11 +20,25 @@ class ScanSummary(BaseModel):
     summary: Optional[str] = None
     image_url: Optional[str] = None
 
+    # Multi-image extensions (backward-compatible defaults)
+    inspection_type: Optional[str] = "single"
+    image_count: Optional[int] = 1
+    image_roles: Optional[List[str]] = None
+    is_conflicted: Optional[bool] = False
+    is_imported: Optional[bool] = False
+    commodity_type: Optional[str] = None
+
 class ScanDetail(ScanSummary):
     ocr_text: Optional[str] = None
     ocr_blocks: Optional[List[Dict[str, Any]]] = None
     structured_data: Optional[Dict[str, Any]] = None
     compliance_report: Optional[Dict[str, Any]] = None
+
+    # Multi-image detail extensions
+    provenance: Optional[Dict[str, Any]] = None
+    conflicts: Optional[List[Dict[str, Any]]] = None
+    images: Optional[List[Dict[str, Any]]] = None
+    warnings: Optional[List[str]] = None
 
 class HistoryListResponse(BaseModel):
     total: int = Field(..., description="Total count of scan records")

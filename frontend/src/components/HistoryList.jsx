@@ -18,7 +18,9 @@ import {
   Calendar,
   IndianRupee,
   Scale,
-  ShieldCheck
+  ShieldCheck,
+  Layers,
+  AlertTriangle
 } from 'lucide-react';
 
 const PAGE_SIZE = 10;
@@ -238,11 +240,30 @@ export function HistoryList() {
                           )}
 
                           <div className="min-w-0 max-w-xs">
-                            <div className="font-bold text-navy-900 truncate" title={item.product_name || item.original_filename}>
-                              {item.product_name || 'Unnamed Package'}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-navy-900 truncate" title={item.product_name || item.original_filename}>
+                                {item.product_name || 'Unnamed Package'}
+                              </span>
+                              {item.inspection_type === 'multi' && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                                  <Layers size={10} className="text-blue-500" />
+                                  {item.image_count || 1} {item.image_count === 1 ? 'view' : 'views'}
+                                </span>
+                              )}
+                              {item.is_conflicted && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 shrink-0" title="Cross-image declaration conflict detected">
+                                  <AlertTriangle size={10} className="text-amber-600" />
+                                  Conflict
+                                </span>
+                              )}
                             </div>
-                            <div className="text-[11px] text-slate-500 font-mono truncate mt-0.5" title={item.file_id}>
-                              {item.original_filename || item.file_id}
+                            <div className="text-[11px] text-slate-500 font-mono truncate mt-0.5 flex items-center gap-1.5" title={item.file_id}>
+                              <span>{item.original_filename || item.file_id}</span>
+                              {item.inspection_type === 'multi' && item.image_roles && item.image_roles.length > 0 && (
+                                <span className="text-[10px] text-slate-400 font-sans truncate">
+                                  • {item.image_roles.join(', ')}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
